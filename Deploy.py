@@ -5,8 +5,8 @@ import tensorflow as tf
 import time
 import glob
 
-from bident.StrawMLTools import DeployBident
-from bident.NonMaxSuppression import MultiResHandler
+from scripts.StrawMLTools import DeployBident
+from scripts.NonMaxSuppression import MultiResHandler
 
 print('done importing')
 
