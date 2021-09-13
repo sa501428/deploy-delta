@@ -20,19 +20,11 @@ WORKING_DIR = sys.argv[3]
 STEM = sys.argv[4]
 RESOLUTIONS = sys.argv[5].split(",")
 THRESHOLD = 0.8
-# WORKING_DIR = "/home/alyssa/loop_caller/machine-learning-deployment/"
-# CELL_LINE = 'tridentv1_results/test'#GM12878_intact_30' #'gm12878_intra_nofrag_30'
-# FILEPATH = '/home/alyssa/loop_caller/machine-learning-deployment/intact_test.hic'
-# '/mnt/HIC2000/HiSeq/GM12878_2020_combined_maps/GM12878_quadRE_SDSallconc_10.5.20/inter_30.hic'
-# '/mnt/HIC2000/HiSeq/GM12878_2020_combined_maps/GM12878_intact_combined_18.7B_10.5.20/inter_30.hic'
-# '/mnt/HIC2000/HiSeq/GM12878_2020_combined_maps/GM12878_MNase_0.1_10.5.20/inter_30.hic'
-# '/mnt/HIC2000/HiSeq/GM12878_2020_combined_maps/GM12878_quadRE_noSDS_10.5.20/inter_30.hic'
-# '/mnt/HIC2000/HiSeq/GM12878_2020_combined_maps/GM12878_intact_combined_18.7B_10.5.20/inter_30.hic'
-# '/mnt/HIC0000/HiSeq/MboI_magic_biorep/inter_30.hic' #'/mnt/HIC0000/mega/IMR90/DRGN/inter_30.hic'
 NORMALIZATION_TYPE = sys.argv[6]  # "KR"
 MAX_EXAMPLES_IN_RAM = 30
 BATCH_SIZE = 30
 NUM_STRAW_WORKERS = 10
+FEATURE_TYPES = ["loops", "domains", "stripes"]
 
 
 class WBCE:
@@ -57,21 +49,24 @@ def preprocessing_method(matrix):  # , scale=0.1
         mad_val = 1
     # return np.tanh(scale * (matrix - median_val) / mad_val)
     return (matrix - median_val) / mad_val
-    # TODO - try global values in the future
 
 
 def load_models():
-    model_list = []
-    for file in glob.glob(MODEL_DIR + "/*.h5"):
-        print("Using Model", file, flush=True)
-        model_list.append(models.load_model(file,
-                                            custom_objects={'wbce': WBCE().func,
-                                                            'leaky_relu': tf.nn.leaky_relu,
-                                                            'LeakyReLU': layers.LeakyReLU()}))
-    return model_list
+    all_sets_of_models = []
+    wbce = WBCE()
+    for feature in FEATURE_TYPES:
+        model_list = []
+        for file in glob.glob(MODEL_DIR + "/*" + feature + "*.h5"):
+            print("Using Model", file, flush=True)
+            model_list.append(models.load_model(file,
+                                                custom_objects={'wbce': wbce.func,
+                                                                'leaky_relu': tf.nn.leaky_relu,
+                                                                'LeakyReLU': layers.LeakyReLU()}))
+        all_sets_of_models.append(model_list)
+    return all_sets_of_models
 
 
-def deploy_at_res(models, res):
+def deploy_at_res(all_model_sets, res):
     outpath = WORKING_DIR + "/" + STEM
     loop_file = outpath + '_loops_' + str(res) + '.bedpe'
     domain_file = outpath + '_domains_' + str(res) + '.bedpe'
@@ -79,7 +74,7 @@ def deploy_at_res(models, res):
     loop_domain_file = outpath + '_loop_domains_' + str(res) + '.bedpe'
     print('got to deployment')
     print("Doing resolution", res, "for", STEM, flush=True)
-    DeploySpears(models=models, batchSize=BATCH_SIZE,
+    DeploySpears(all_model_sets=all_model_sets, batchSize=BATCH_SIZE,
                  numStrawWorkers=NUM_STRAW_WORKERS, filepath=FILEPATH,
                  resolution=res,
                  maxExamplesInRAM=MAX_EXAMPLES_IN_RAM, matrixWidth=MATRIX_WIDTH,
@@ -108,7 +103,7 @@ def merge_lists(loop_lists, domain_lists, stripe_lists, loop_domain_lists, loop_
 class DeployTridentFeatures:
     def __init__(self):
         print('initialize deployment', flush=True)
-        models = load_models()
+        all_model_sets = load_models()
 
         resolutions = []
         for res_string in RESOLUTIONS:
@@ -124,7 +119,7 @@ class DeployTridentFeatures:
         domain_radii = []
         for res in resolutions:
             start_time = time.time()
-            loops, domains, stripes, loop_domains = deploy_at_res(models, res)
+            loops, domains, stripes, loop_domains = deploy_at_res(all_model_sets, res)
 
             runtime = time.time() - start_time
             print("Executed resolution {} in {} seconds".format(res, runtime))
@@ -137,7 +132,7 @@ class DeployTridentFeatures:
             loop_radii.append(res)
             domain_radii.append(3 * res)
         merge_lists(loop_lists, domain_lists, stripe_lists, loop_domains_lists,
-                         loop_radii, domain_radii)
+                    loop_radii, domain_radii)
 
 
 print('starting deployment', flush=True)

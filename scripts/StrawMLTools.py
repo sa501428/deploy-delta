@@ -69,25 +69,28 @@ class AggregatedMatrix:
         else:
             self.__matrix = np.ones(shape)
 
-    def aggregate(self, matrix):
-        loop_domains = matrix[:, :, :, 0] * matrix[:, :, :, 1]
+    def aggregate(self, matrix, index):
         if self.__useArithmeticMean:
-            self.__matrix[:, :, :, :-1] = self.__matrix[:, :, :, :-1] + matrix
-            self.__matrix[:, :, :, -1] = self.__matrix[:, :, :, -1] + loop_domains
+            self.__matrix[:, :, :, index] = self.__matrix[:, :, :, index] + matrix
         else:
-            self.__matrix[:, :, :, :-1] = np.multiply(self.__matrix[:, :, :, :-1], matrix)
-            self.__matrix[:, :, :, -1] = np.multiply(self.__matrix[:, :, :, -1], loop_domains)
-        self.__num_aggregations += 1
+            self.__matrix[:, :, :, index] = np.multiply(self.__matrix[:, :, :, index], matrix)
+        if index == 0:
+            self.__num_aggregations += 1
+
+    def __calcLoopDomains(self):
+        self.__matrix[:, :, :, -1] = self.__matrix[:, :, :, 0] * self.__matrix[:, :, :, 1]
 
     def getFinalResult(self):
         if self.__useArithmeticMean:
-            return self.__matrix / self.__num_aggregations
+            self.__matrix = self.__matrix / self.__num_aggregations
         else:
-            return np.power(self.__matrix, 1.0 / self.__num_aggregations)
+            self.__matrix = np.power(self.__matrix, 1.0 / self.__num_aggregations)
+        self.__calcLoopDomains()
+        return self.__matrix
 
 
 class DeploySpears:
-    def __init__(self, models: list, batchSize: int, numStrawWorkers: int, filepath: str,
+    def __init__(self, all_model_sets: list, batchSize: int, numStrawWorkers: int, filepath: str,
                  resolution: int, maxExamplesInRAM: int, matrixWidth: int, threshold: float,
                  out_files: list, preprocessMethod,
                  useArithmeticMean: bool = False, norm: str = "KR",
@@ -99,7 +102,7 @@ class DeploySpears:
         self.__production_done = threading.Event()
         self.__prediction_done = threading.Event()
         self.__lock = threading.Lock()
-        self.__models = models
+        self.__all_model_sets = all_model_sets
         self.__use_arithmetic_mean = useArithmeticMean
         self.__batch_size = batchSize
         self.__num_straw_workers = numStrawWorkers
@@ -179,8 +182,9 @@ class DeploySpears:
                 raw_hic_input[k, :, :, 0] = section[k][0]
             agg_matrix = AggregatedMatrix((currentSize, self.getWidth(), self.getWidth(),
                                            self.__num_output_channels + 1), self.__use_arithmetic_mean)
-            for model in self.__models:
-                agg_matrix.aggregate(model.predict(raw_hic_input))
+            for p in range(len(self.__all_model_sets)):
+                for model in self.__all_model_sets[p]:
+                    agg_matrix.aggregate(model.predict(raw_hic_input), p)
             result = agg_matrix.getFinalResult()
 
             self.handlePredictions(currentSize, result, section)
