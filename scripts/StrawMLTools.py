@@ -149,10 +149,9 @@ class DeploySpears:
             results.append(executor.submit(self.run_model_predictions))
             results.append(executor.submit(self.generate_bedpe_annotation))
             print('All jobs submitted', flush=True)
-            results[-2].result()
-            results[-1].result()
         for res in results:
-            res.result()
+            if not res.running():
+                res.result()
         return results
 
     def handle_predictions(self, current_size, prediction, section):

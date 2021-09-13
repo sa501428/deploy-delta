@@ -54,12 +54,14 @@ def preprocessing_method(matrix):  # , scale=0.1
 def load_models():
     all_sets_of_models = []
     wbce = WBCE()
+    print("Loading all Models")
     for feature in FEATURE_TYPES:
         model_list = []
         for file in glob.glob(MODEL_DIR + "/*" + feature + "*.h5"):
             print("Using Model", file, flush=True)
             model_list.append(models.load_model(file,
                                                 custom_objects={'wbce': wbce.func,
+                                                                'func': wbce.func,
                                                                 'leaky_relu': tf.nn.leaky_relu,
                                                                 'LeakyReLU': layers.LeakyReLU()}))
         all_sets_of_models.append(model_list)
