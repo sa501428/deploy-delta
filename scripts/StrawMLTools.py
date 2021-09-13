@@ -1,11 +1,9 @@
-import concurrent
 import gc
 import threading
 import time
 
 import numpy as np
 import strawC
-from keras import backend as K
 from scipy import sparse
 from scipy.ndimage.measurements import label
 from concurrent.futures import ThreadPoolExecutor
@@ -34,7 +32,7 @@ class LockedList(list):
         self.__lock.release()
         return temp_length
 
-    def getAmountAndClear(self, amount):
+    def get_amount_and_clear(self, amount):
         self.__lock.acquire()
         if len(self) > amount:
             temp_list = self[:amount]
@@ -45,7 +43,7 @@ class LockedList(list):
         self.__lock.release()
         return temp_list
 
-    def getAllAndClear(self):
+    def get_all_and_clear(self):
         self.__lock.acquire()
         temp_list = self[:len(self)]
         self.clear()
@@ -53,16 +51,9 @@ class LockedList(list):
         return temp_list
 
 
-def wbce(y_true, y_pred, weight1=400, weight0=1):
-    y_true = K.clip(y_true, K.epsilon(), 1 - K.epsilon())
-    y_pred = K.clip(y_pred, K.epsilon(), 1 - K.epsilon())
-    log_loss = -(y_true * K.log(y_pred) * weight1 + (1 - y_true) * K.log(1 - y_pred) * weight0)
-    return K.mean(log_loss, axis=-1)
-
-
 class AggregatedMatrix:
-    def __init__(self, shape, useArithmeticMean: bool = False):
-        self.__useArithmeticMean = useArithmeticMean
+    def __init__(self, shape, use_arithmetic_mean: bool = False):
+        self.__useArithmeticMean = use_arithmetic_mean
         self.__num_aggregations = 0
         if self.__useArithmeticMean:
             self.__matrix = np.zeros(shape)
@@ -77,24 +68,24 @@ class AggregatedMatrix:
         if index == 0:
             self.__num_aggregations += 1
 
-    def __calcLoopDomains(self):
+    def __calc_loop_domains(self):
         self.__matrix[:, :, :, -1] = self.__matrix[:, :, :, 0] * self.__matrix[:, :, :, 1]
 
-    def getFinalResult(self):
+    def get_final_result(self):
         if self.__useArithmeticMean:
             self.__matrix = self.__matrix / self.__num_aggregations
         else:
             self.__matrix = np.power(self.__matrix, 1.0 / self.__num_aggregations)
-        self.__calcLoopDomains()
+        self.__calc_loop_domains()
         return self.__matrix
 
 
 class DeploySpears:
-    def __init__(self, all_model_sets: list, batchSize: int, numStrawWorkers: int, filepath: str,
-                 resolution: int, maxExamplesInRAM: int, matrixWidth: int, threshold: float,
-                 out_files: list, preprocessMethod,
-                 useArithmeticMean: bool = False, norm: str = "KR",
-                 numOutputChannels: int = 3):
+    def __init__(self, all_model_sets: list, batch_size: int, num_straw_workers: int, filepath: str,
+                 resolution: int, max_examples_in_ram: int, matrix_width: int, threshold: float,
+                 out_files: list, preprocess_method,
+                 use_arithmetic_mean: bool = False, norm: str = "KR",
+                 num_output_channels: int = 3):
         self.__straw_data_list = LockedList()
         self.__coords_list = LockedList()
         self.__prediction_list = LockedList()
@@ -103,27 +94,27 @@ class DeploySpears:
         self.__prediction_done = threading.Event()
         self.__lock = threading.Lock()
         self.__all_model_sets = all_model_sets
-        self.__use_arithmetic_mean = useArithmeticMean
-        self.__batch_size = batchSize
-        self.__num_straw_workers = numStrawWorkers
-        self.__num_total_workers = numStrawWorkers + 3
+        self.__use_arithmetic_mean = use_arithmetic_mean
+        self.__batch_size = batch_size
+        self.__num_straw_workers = num_straw_workers
+        self.__num_total_workers = num_straw_workers + 3
         self.__hic_file = filepath
         self.__resolution = resolution
-        self.__limit = maxExamplesInRAM
-        self.__width = matrixWidth
+        self.__limit = max_examples_in_ram
+        self.__width = matrix_width
         self.__threshold = threshold
         self.__norm = norm
         self.__out_files = out_files
-        self.__num_output_channels = numOutputChannels
-        self.__preprocess_input = preprocessMethod
+        self.__num_output_channels = num_output_channels
+        self.__preprocess_input = preprocess_method
         self.__nms_handlers = []
-        for k in range(numOutputChannels + 1):
+        for k in range(num_output_channels + 1):
             self.__nms_handlers.append(Handler(resolution))
-        self.__footer = self.fillOutAllIndices(filepath, resolution, norm)
+        self.__footer = self.fill_out_all_indices(filepath, resolution, norm)
         self.__num_total_slices = self.__coords_list.len()
-        self.__predictFromModel()
+        self.__predict_from_model()
 
-    def grabRegion(self, chrom1, cx1, cx2, cy1, cy2, resolution):
+    def grab_region(self, chrom1, cx1, cx2, cy1, cy2, resolution):
         footer = self.__footer[chrom1]
         result = strawC.getRecords(self.__hic_file, cx1, cx2, cy1, cy2,
                                    resolution, footer.foundFooter, footer.version,
@@ -150,13 +141,13 @@ class DeploySpears:
         matrix[np.isinf(matrix)] = 0
         return matrix
 
-    def __predictFromModel(self):
+    def __predict_from_model(self):
         results = []
         with ThreadPoolExecutor(max_workers=self.__num_total_workers) as executor:
             for i in range(self.__num_straw_workers):
-                results.append(executor.submit(self.getAllDataSlices))
-            results.append(executor.submit(self.runModelPredictions))
-            results.append(executor.submit(self.generateBedpeAnnotation))
+                results.append(executor.submit(self.get_all_data_slices))
+            results.append(executor.submit(self.run_model_predictions))
+            results.append(executor.submit(self.generate_bedpe_annotation))
             print('All jobs submitted', flush=True)
             results[-2].result()
             results[-1].result()
@@ -164,98 +155,98 @@ class DeploySpears:
             res.result()
         return results
 
-    def handlePredictions(self, currentSize, prediction, section):
-        for k in range(currentSize):
+    def handle_predictions(self, current_size, prediction, section):
+        for k in range(current_size):
             self.__prediction_list.append((prediction[k, :, :, :], section[k][1]))
 
-    def runModelPredictions(self):
+    def run_model_predictions(self):
         num_done_counter = 0.0
-        while not (self.__production_done.is_set() and self.getNumDataPoints() == 0):
-            section = self.__straw_data_list.getAmountAndClear(self.__batch_size)
-            currentSize = len(section)
-            if currentSize == 0:
+        while not (self.__production_done.is_set() and self.get_num_data_points() == 0):
+            section = self.__straw_data_list.get_amount_and_clear(self.__batch_size)
+            current_size = len(section)
+            if current_size == 0:
                 time.sleep(2)
                 continue
 
-            raw_hic_input = np.zeros((currentSize, self.getWidth(), self.getWidth(), 1))
-            for k in range(currentSize):
+            raw_hic_input = np.zeros((current_size, self.get_width(), self.get_width(), 1))
+            for k in range(current_size):
                 raw_hic_input[k, :, :, 0] = section[k][0]
-            agg_matrix = AggregatedMatrix((currentSize, self.getWidth(), self.getWidth(),
+            agg_matrix = AggregatedMatrix((current_size, self.get_width(), self.get_width(),
                                            self.__num_output_channels + 1), self.__use_arithmetic_mean)
             for p in range(len(self.__all_model_sets)):
                 for model in self.__all_model_sets[p]:
                     agg_matrix.aggregate(model.predict(raw_hic_input), p)
-            result = agg_matrix.getFinalResult()
+            result = agg_matrix.get_final_result()
 
-            self.handlePredictions(currentSize, result, section)
-            num_done_counter += currentSize
+            self.handle_predictions(current_size, result, section)
+            num_done_counter += current_size
             print('Progress ', 100. * (num_done_counter / self.__num_total_slices), '%  done', flush=True)
         time.sleep(2)
         self.__prediction_done.set()
 
-    def getDataFromCoordinates(self, coordinates, resolution):
+    def get_data_from_coordinates(self, coordinates, resolution):
         (chrom1, x1, y1) = coordinates
         cx1 = x1 * resolution
-        cx2 = (x1 + self.getWidth() - 1) * resolution
+        cx2 = (x1 + self.get_width() - 1) * resolution
         cy1 = y1 * resolution
-        cy2 = (y1 + self.getWidth() - 1) * resolution
-        return self.grabRegion(chrom1, cx1, cx2, cy1, cy2, resolution)
+        cy2 = (y1 + self.get_width() - 1) * resolution
+        return self.grab_region(chrom1, cx1, cx2, cy1, cy2, resolution)
 
-    def fillOutAllIndices(self, hicfile, resolution, norm):
-        chrom_dot_sizes = strawC.getChromosomes(hicfile)
+    def fill_out_all_indices(self, hic_file, resolution, norm):
+        chrom_dot_sizes = strawC.getChromosomes(hic_file)
         for chromosome in chrom_dot_sizes:
             chrom = chromosome.name
             if chrom.lower() == 'all':
                 continue
-            maxBin = chromosome.length // resolution + 1
-            exceedBoundariesLimit = maxBin - self.getWidth()
+            max_bin = chromosome.length // resolution + 1
+            exceed_boundaries_limit = max_bin - self.get_width()
             buffer = 50
-            nearDiagDistance = 10000000 // resolution - self.getWidth()
+            near_diag_distance = 10000000 // resolution - self.get_width()
             temp = []
-            for x1 in range(0, maxBin - self.getWidth(), self.getWidth() - buffer):
-                for y1 in range(x1, min(x1 + nearDiagDistance, exceedBoundariesLimit), self.getWidth() - buffer):
+            for x1 in range(0, max_bin - self.get_width(), self.get_width() - buffer):
+                for y1 in range(x1, min(x1 + near_diag_distance, exceed_boundaries_limit), self.get_width() - buffer):
                     temp.append((chrom, x1, y1))
-            temp.append((chrom, exceedBoundariesLimit, exceedBoundariesLimit))
-            self.populateCoordinates(temp)
+            temp.append((chrom, exceed_boundaries_limit, exceed_boundaries_limit))
+            self.populate_coordinates(temp)
             del temp
-        print('Near Diag Vals populated', flush=True)
+        print('Near Diagonal Values populated', flush=True)
         gc.collect()
 
         footer = {}
         for chromosome in chrom_dot_sizes:
             chrom = chromosome.name
-            if (chrom.lower() == 'all'):
+            if chrom.lower() == 'all':
                 continue
             print('Getting norm vector for', chrom, flush=True)
-            footer[chrom] = strawC.getNormExpVectors(hicfile, chrom, chrom, "observed", norm, "BP", resolution)
+            footer[chrom] = strawC.getNormExpVectors(hic_file, chrom, chrom, "observed", norm, "BP", resolution)
         return footer
 
-    def generateBedpeAnnotation(self):
+    def generate_bedpe_annotation(self):
         skip_counter = 0
-        while not (self.__prediction_done.is_set() and self.getNumPredictions() == 0):
-            section = self.__prediction_list.getAllAndClear()
-            currentSize = len(section)
+        while not (self.__prediction_done.is_set() and self.get_num_predictions() == 0):
+            section = self.__prediction_list.get_all_and_clear()
+            current_size = len(section)
 
-            if currentSize == 0:
+            if current_size == 0:
                 skip_counter += 1
                 time.sleep(5)
                 continue
 
-            for k in range(currentSize):
-                self.writePredictionToNMSHandler(section[k])
+            for k in range(current_size):
+                self.write_prediction_to_nms_handler(section[k])
 
         print('Starting NMS', flush=True)
         for k in range(self.__num_output_channels + 1):
             self.__nms_handlers[k].doNMSAndPrintToFile(self.__out_files[k])
 
-    def getAllDataSlices(self):
-        while self.getNumCoordinates() > 0:
-            coordinates = self.__coords_list.getAmountAndClear(1)[0]
+    def get_all_data_slices(self):
+        while self.get_num_coordinates() > 0:
+            coordinates = self.__coords_list.get_amount_and_clear(1)[0]
             if coordinates is None:
                 continue
-            while self.getNumDataPoints() > self.getLimit():
+            while self.get_num_data_points() > self.get_limit():
                 time.sleep(2)
-            matrix = self.getDataFromCoordinates(coordinates, self.__resolution)
+            matrix = self.get_data_from_coordinates(coordinates, self.__resolution)
             if matrix is None or not (type(matrix) is np.ndarray):
                 continue
             self.__straw_data_list.append((self.__preprocess_input(matrix.copy()), coordinates))
@@ -268,65 +259,65 @@ class DeploySpears:
                 print("DONE GETTING ALL REGIONS VIA STRAW!!!", flush=True)
 
     @staticmethod
-    def findMaxInConnectedComponents(prediction, chrom1, x0, y0, handler):
-        labeled, ncomponents = label(prediction, np.ones((3, 3), dtype=np.int))
-        for num in range(ncomponents):
-            highlightedRegion = (labeled == (num + 1)) * prediction
-            maxPrediction = np.max(highlightedRegion)
-            maxIndices = np.where(highlightedRegion == maxPrediction)
-            maxIndices = [(x, y) for x, y in zip(maxIndices[0], maxIndices[1])]
-            for maxIndex in maxIndices:
-                rowStart = x0 + maxIndex[0]
-                rowEnd = rowStart + 1
-                columnStart = y0 + maxIndex[1]
-                columnEnd = columnStart + 1
-                if rowStart < columnStart:
-                    handler.addPrediction(chrom1, chrom1, rowStart, rowEnd, columnStart, columnEnd, maxPrediction)
+    def find_max_in_connected_components(prediction, chrom1, x0, y0, handler):
+        labeled, n_components = label(prediction, np.ones((3, 3), dtype=np.int))
+        for num in range(n_components):
+            highlighted_region = (labeled == (num + 1)) * prediction
+            max_prediction = np.max(highlighted_region)
+            max_indices = np.where(highlighted_region == max_prediction)
+            max_indices = [(x, y) for x, y in zip(max_indices[0], max_indices[1])]
+            for maxIndex in max_indices:
+                row_start = x0 + maxIndex[0]
+                row_end = row_start + 1
+                column_start = y0 + maxIndex[1]
+                column_end = column_start + 1
+                if row_start < column_start:
+                    handler.addPrediction(chrom1, chrom1, row_start, row_end, column_start, column_end, max_prediction)
                 else:
-                    handler.addPrediction(chrom1, chrom1, columnStart, columnEnd, rowStart, rowEnd, maxPrediction)
+                    handler.addPrediction(chrom1, chrom1, column_start, column_end, row_start, row_end, max_prediction)
 
     @staticmethod
-    def findBoundInConnectedComponents(prediction, chrom1, x0, y0, handler):
-        labeled, ncomponents = label(prediction, np.ones((3, 3), dtype=np.int))
-        for num in range(ncomponents):
-            highlightedRegion = (labeled == (num + 1)) * prediction
-            maxPrediction = np.max(highlightedRegion)
-            indices = np.where(highlightedRegion > 0)
-            rowStart = int(x0 + np.min(indices[0]))
-            rowEnd = max(int(x0 + np.max(indices[0])), rowStart + 1)
-            colStart = int(y0 + np.min(indices[1]))
-            colEnd = max(int(y0 + np.max(indices[1])), colStart + 1)
-            handler.addPrediction(chrom1, chrom1, rowStart, rowEnd, colStart, colEnd, maxPrediction)
+    def find_bound_in_connected_components(prediction, chrom1, x0, y0, handler):
+        labeled, n_components = label(prediction, np.ones((3, 3), dtype=np.int))
+        for num in range(n_components):
+            highlighted_region = (labeled == (num + 1)) * prediction
+            max_prediction = np.max(highlighted_region)
+            indices = np.where(highlighted_region > 0)
+            row_start = int(x0 + np.min(indices[0]))
+            row_end = max(int(x0 + np.max(indices[0])), row_start + 1)
+            col_start = int(y0 + np.min(indices[1]))
+            col_end = max(int(y0 + np.max(indices[1])), col_start + 1)
+            handler.addPrediction(chrom1, chrom1, row_start, row_end, col_start, col_end, max_prediction)
 
-    def writePredictionToNMSHandler(self, section):
+    def write_prediction_to_nms_handler(self, section):
         prediction = section[0]
-        prediction[prediction < self.getThreshold()] = 0
+        prediction[prediction < self.get_threshold()] = 0
         chrom1 = section[1][0]
         x1 = int(section[1][1])
         y1 = int(section[1][2])
         for k in range(self.__num_output_channels + 1):
             if k == 2 and self.__num_output_channels == 3:
-                self.findBoundInConnectedComponents(prediction[:, :, k], chrom1, x1, y1, self.__nms_handlers[k])
+                self.find_bound_in_connected_components(prediction[:, :, k], chrom1, x1, y1, self.__nms_handlers[k])
             else:
-                self.findMaxInConnectedComponents(prediction[:, :, k], chrom1, x1, y1, self.__nms_handlers[k])
+                self.find_max_in_connected_components(prediction[:, :, k], chrom1, x1, y1, self.__nms_handlers[k])
 
-    def getThreshold(self):
+    def get_threshold(self):
         return self.__threshold
 
-    def getWidth(self):
+    def get_width(self):
         return self.__width
 
-    def getLimit(self):
+    def get_limit(self):
         return self.__limit
 
-    def getNumCoordinates(self):
+    def get_num_coordinates(self):
         return self.__coords_list.len()
 
-    def getNumDataPoints(self):
+    def get_num_data_points(self):
         return self.__straw_data_list.len()
 
-    def getNumPredictions(self):
+    def get_num_predictions(self):
         return self.__prediction_list.len()
 
-    def populateCoordinates(self, coords):
+    def populate_coordinates(self, coords):
         self.__coords_list.extend(coords)

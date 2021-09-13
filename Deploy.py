@@ -74,16 +74,16 @@ def deploy_at_res(all_model_sets, res):
     loop_domain_file = outpath + '_loop_domains_' + str(res) + '.bedpe'
     print('got to deployment')
     print("Doing resolution", res, "for", STEM, flush=True)
-    DeploySpears(all_model_sets=all_model_sets, batchSize=BATCH_SIZE,
-                 numStrawWorkers=NUM_STRAW_WORKERS, filepath=FILEPATH,
+    DeploySpears(all_model_sets=all_model_sets, batch_size=BATCH_SIZE,
+                 num_straw_workers=NUM_STRAW_WORKERS, filepath=FILEPATH,
                  resolution=res,
-                 maxExamplesInRAM=MAX_EXAMPLES_IN_RAM, matrixWidth=MATRIX_WIDTH,
+                 max_examples_in_ram=MAX_EXAMPLES_IN_RAM, matrix_width=MATRIX_WIDTH,
                  threshold=THRESHOLD,
                  out_files=[loop_file, domain_file, stripe_file, loop_domain_file],
-                 preprocessMethod=preprocessing_method,
-                 useArithmeticMean=False,
+                 preprocess_method=preprocessing_method,
+                 use_arithmetic_mean=False,
                  norm=NORMALIZATION_TYPE,
-                 numOutputChannels=3)
+                 num_output_channels=3)
     return loop_file, domain_file, stripe_file, loop_domain_file
 
 
