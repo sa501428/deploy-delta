@@ -8,6 +8,7 @@ import strawC
 from keras import backend as K
 from scipy import sparse
 from scipy.ndimage.measurements import label
+from concurrent.futures import ThreadPoolExecutor
 
 from .NonMaxSuppression import Handler
 
@@ -59,18 +60,6 @@ def wbce(y_true, y_pred, weight1=400, weight0=1):
     return K.mean(log_loss, axis=-1)
 
 
-def tanh_robust_zscore(matrix, scale=0.1):
-    if np.sum(matrix) < 1e-9:
-        return matrix
-    flattenedData = matrix.flatten()
-    flattenedData = flattenedData[flattenedData > 0]
-    medianVal = np.median(flattenedData)
-    madVal = np.median(np.abs(flattenedData - medianVal))
-    if madVal < 1e-9:
-        madVal = 1
-    return np.tanh(scale * (matrix - medianVal) / madVal)
-
-
 class AggregatedMatrix:
     def __init__(self, shape, useArithmeticMean: bool = False):
         self.__useArithmeticMean = useArithmeticMean
@@ -97,10 +86,10 @@ class AggregatedMatrix:
             return np.power(self.__matrix, 1.0 / self.__num_aggregations)
 
 
-class DeployBident:
+class DeploySpears:
     def __init__(self, models: list, batchSize: int, numStrawWorkers: int, filepath: str,
                  resolution: int, maxExamplesInRAM: int, matrixWidth: int, threshold: float,
-                 out_files: list, preprocessMethod=tanh_robust_zscore,
+                 out_files: list, preprocessMethod,
                  useArithmeticMean: bool = False, norm: str = "KR",
                  numOutputChannels: int = 3):
         self.__straw_data_list = LockedList()
@@ -160,7 +149,7 @@ class DeployBident:
 
     def __predictFromModel(self):
         results = []
-        with concurrent.futures.ThreadPoolExecutor(max_workers=self.__num_total_workers) as executor:
+        with ThreadPoolExecutor(max_workers=self.__num_total_workers) as executor:
             for i in range(self.__num_straw_workers):
                 results.append(executor.submit(self.getAllDataSlices))
             results.append(executor.submit(self.runModelPredictions))
@@ -188,8 +177,8 @@ class DeployBident:
             raw_hic_input = np.zeros((currentSize, self.getWidth(), self.getWidth(), 1))
             for k in range(currentSize):
                 raw_hic_input[k, :, :, 0] = section[k][0]
-            agg_matrix = AggregatedMatrix((currentSize, self.getWidth(), self.getWidth(), self.__num_output_channels + 1),
-                                          self.__use_arithmetic_mean)
+            agg_matrix = AggregatedMatrix((currentSize, self.getWidth(), self.getWidth(),
+                                           self.__num_output_channels + 1), self.__use_arithmetic_mean)
             for model in self.__models:
                 agg_matrix.aggregate(model.predict(raw_hic_input))
             result = agg_matrix.getFinalResult()
@@ -212,7 +201,7 @@ class DeployBident:
         chrom_dot_sizes = strawC.getChromosomes(hicfile)
         for chromosome in chrom_dot_sizes:
             chrom = chromosome.name
-            if (chrom.lower() == 'all'):
+            if chrom.lower() == 'all':
                 continue
             maxBin = chromosome.length // resolution + 1
             exceedBoundariesLimit = maxBin - self.getWidth()
@@ -236,7 +225,6 @@ class DeployBident:
             print('Getting norm vector for', chrom, flush=True)
             footer[chrom] = strawC.getNormExpVectors(hicfile, chrom, chrom, "observed", norm, "BP", resolution)
         return footer
-
 
     def generateBedpeAnnotation(self):
         skip_counter = 0
