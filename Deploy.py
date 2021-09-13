@@ -67,11 +67,11 @@ def load_models():
 
 
 def deploy_at_res(all_model_sets, res):
-    outpath = WORKING_DIR + "/" + STEM
-    loop_file = outpath + '_loops_' + str(res) + '.bedpe'
-    domain_file = outpath + '_domains_' + str(res) + '.bedpe'
-    stripe_file = outpath + '_stripes_' + str(res) + '.bedpe'
-    loop_domain_file = outpath + '_loop_domains_' + str(res) + '.bedpe'
+    out_path = WORKING_DIR + "/" + STEM
+    loop_file = out_path + '_loops_' + str(res) + '.bedpe'
+    domain_file = out_path + '_domains_' + str(res) + '.bedpe'
+    stripe_file = out_path + '_stripes_' + str(res) + '.bedpe'
+    loop_domain_file = out_path + '_loop_domains_' + str(res) + '.bedpe'
     print('got to deployment')
     print("Doing resolution", res, "for", STEM, flush=True)
     DeploySpears(all_model_sets=all_model_sets, batch_size=BATCH_SIZE,
@@ -89,14 +89,14 @@ def deploy_at_res(all_model_sets, res):
 
 def merge_lists(loop_lists, domain_lists, stripe_lists, loop_domain_lists, loop_radii, domain_radii):
     if len(loop_lists) > 1:
-        outpath = WORKING_DIR + "/" + STEM
-        MultiResHandler(loop_lists, outpath + '_loops_merged.bedpe', threshold=1e-10,
+        out_path = WORKING_DIR + "/" + STEM
+        MultiResHandler(loop_lists, out_path + '_loops_merged.bedpe', threshold=1e-10,
                         radii=loop_radii)
-        MultiResHandler(domain_lists, outpath + '_domains_merged.bedpe', threshold=1e-10,
+        MultiResHandler(domain_lists, out_path + '_domains_merged.bedpe', threshold=1e-10,
                         radii=domain_radii)
-        MultiResHandler(stripe_lists, outpath + '_stripes_merged.bedpe', threshold=1e-10,
+        MultiResHandler(stripe_lists, out_path + '_stripes_merged.bedpe', threshold=1e-10,
                         radii=loop_radii)
-        MultiResHandler(loop_domain_lists, outpath + '_loop_domains_merged.bedpe', threshold=1e-10,
+        MultiResHandler(loop_domain_lists, out_path + '_loop_domains_merged.bedpe', threshold=1e-10,
                         radii=domain_radii)
 
 

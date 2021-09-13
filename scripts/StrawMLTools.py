@@ -237,7 +237,7 @@ class DeploySpears:
 
         print('Starting NMS', flush=True)
         for k in range(self.__num_output_channels + 1):
-            self.__nms_handlers[k].doNMSAndPrintToFile(self.__out_files[k])
+            self.__nms_handlers[k].do_nms_and_print_to_file(self.__out_files[k])
 
     def get_all_data_slices(self):
         while self.get_num_coordinates() > 0:
@@ -272,9 +272,9 @@ class DeploySpears:
                 column_start = y0 + maxIndex[1]
                 column_end = column_start + 1
                 if row_start < column_start:
-                    handler.addPrediction(chrom1, chrom1, row_start, row_end, column_start, column_end, max_prediction)
+                    handler.add_prediction(chrom1, chrom1, row_start, row_end, column_start, column_end, max_prediction)
                 else:
-                    handler.addPrediction(chrom1, chrom1, column_start, column_end, row_start, row_end, max_prediction)
+                    handler.add_prediction(chrom1, chrom1, column_start, column_end, row_start, row_end, max_prediction)
 
     @staticmethod
     def find_bound_in_connected_components(prediction, chrom1, x0, y0, handler):
@@ -287,7 +287,7 @@ class DeploySpears:
             row_end = max(int(x0 + np.max(indices[0])), row_start + 1)
             col_start = int(y0 + np.min(indices[1]))
             col_end = max(int(y0 + np.max(indices[1])), col_start + 1)
-            handler.addPrediction(chrom1, chrom1, row_start, row_end, col_start, col_end, max_prediction)
+            handler.add_prediction(chrom1, chrom1, row_start, row_end, col_start, col_end, max_prediction)
 
     def write_prediction_to_nms_handler(self, section):
         prediction = section[0]

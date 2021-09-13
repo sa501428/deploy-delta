@@ -41,41 +41,41 @@ class Handler:
         self.resolution = resolution
         self.nms = FastNMS(1, threshold)
 
-    def doNMSAndPrintToFile(self, outfileName):
+    def do_nms_and_print_to_file(self, outfile_name):
         for key in self.findings:
             temp = list(self.findings[key])
             temp = np.vstack(temp)
             self.findings[key] = self.nms.run(temp)
 
-        outfileHandler = open(outfileName, 'w')
-        outfileHandler.write("#chr1\tx1\tx2\tchr2\ty1\ty2\tname1\tscore\tstrand1\tstrand2\tcolor\n")
+        outfile_handler = open(outfile_name, 'w')
+        outfile_handler.write("#chr1\tx1\tx2\tchr2\ty1\ty2\tname1\tscore\tstrand1\tstrand2\tcolor\n")
         for key in self.findings:
-            self.writeToFile(outfileHandler, key[0], key[1], self.findings[key])
-        outfileHandler.close()
+            self.write_to_file(outfile_handler, key[0], key[1], self.findings[key])
+        outfile_handler.close()
 
-    def addPrediction(self, chrom1, chrom2, x1, x2, y1, y2, prediction, offset=0, priority=0):
+    def add_prediction(self, chrom1, chrom2, x1, x2, y1, y2, prediction, offset=0, priority=0):
         local_key = (chrom1, chrom2)
         if local_key not in self.findings:
             self.findings[local_key] = set()
         self.findings[local_key].add((x1, x2, y1, y2, prediction, offset, priority))
 
     @staticmethod
-    def parseBedpeLine(data, index):
+    def parse_bedpe_line(data, index):
         x1, x2 = int(data[index, 0]), int(data[index, 1])
         y1, y2, = int(data[index, 2]), int(data[index, 3])
         score = float(data[index, 4])
         return x1, x2, y1, y2, score
 
-    def writeToFile(self, outfileHandler, chrom1, chrom2, results):
+    def write_to_file(self, outfile_handler, chrom1, chrom2, results):
         results[:, :4] = results[:, :4] * self.resolution
         for k in range(np.shape(results)[0]):
-            x1, x2, y1, y2, score = self.parseBedpeLine(results, k)
-            self.writeline(outfileHandler, chrom1, x1, x2, chrom2, y1, y2, '0,0,0', score)
+            x1, x2, y1, y2, score = self.parse_bedpe_line(results, k)
+            self.write_line(outfile_handler, chrom1, x1, x2, chrom2, y1, y2, '0,0,0', score)
 
     @staticmethod
-    def writeline(outFileHandler, chrom1, x1, x2, chrom2, y1, y2, color, prediction):
-        outFileHandler.write("{0}\t{1}\t{2}\t{3}\t{4}\t{5}\t.\t{6}\t.\t.\t{7}\n".
-                             format(chrom1, x1, x2, chrom2, y1, y2, prediction, color))
+    def write_line(out_file_handler, chrom1, x1, x2, chrom2, y1, y2, color, prediction):
+        out_file_handler.write("{0}\t{1}\t{2}\t{3}\t{4}\t{5}\t.\t{6}\t.\t.\t{7}\n".
+                               format(chrom1, x1, x2, chrom2, y1, y2, prediction, color))
 
 
 class MultiResHandler(Handler):
@@ -83,28 +83,28 @@ class MultiResHandler(Handler):
         super().__init__(1, threshold)
         if radii is None:
             for file in files:
-                self.fillOutAllIndices(file, 0, 0)
+                self.fill_out_all_indices(file, 0, 0)
         else:
             for f in range(len(files)):
-                self.fillOutAllIndices(files[f], len(files) - f, radii[f])
-        self.doNMSAndPrintToFile(output_name)
+                self.fill_out_all_indices(files[f], len(files) - f, radii[f])
+        self.do_nms_and_print_to_file(output_name)
 
-    def fillOutAllIndices(self, infile, priority, offset):
+    def fill_out_all_indices(self, infile, priority, offset):
         with open(infile) as f:
             for line in f:
                 if line.startswith('#'):
                     continue
-                lineSplit = line.split()
-                chrom1, x1, x2 = lineSplit[0], int(lineSplit[1]) - offset, int(lineSplit[2]) + offset
-                chrom2, y1, y2 = lineSplit[3], int(lineSplit[4]) - offset, int(lineSplit[5]) + offset
-                prediction = float(lineSplit[7]) + priority
-                self.addPrediction(chrom1, chrom2, x1, x2, y1, y2, prediction, offset, priority)
+                line_split = line.split()
+                chrom1, x1, x2 = line_split[0], int(line_split[1]) - offset, int(line_split[2]) + offset
+                chrom2, y1, y2 = line_split[3], int(line_split[4]) - offset, int(line_split[5]) + offset
+                prediction = float(line_split[7]) + priority
+                self.add_prediction(chrom1, chrom2, x1, x2, y1, y2, prediction, offset, priority)
         gc.collect()
 
-    def writeToFile(self, outfileHandler, chrom1, chrom2, results):
+    def write_to_file(self, outfile_handler, chrom1, chrom2, results):
         results[:, :4] = results[:, :4] * self.resolution
         for k in range(np.shape(results)[0]):
-            x1, x2, y1, y2, score = self.parseBedpeLine(results, k)
+            x1, x2, y1, y2, score = self.parse_bedpe_line(results, k)
             offset, priority = int(results[k, 5]), int(results[k, 6])
-            self.writeline(outfileHandler, chrom1, x1 + offset, x2 - offset, chrom2, y1 + offset, y2 - offset, '0,0,0',
-                           score - priority)
+            self.write_line(outfile_handler, chrom1, x1 + offset, x2 - offset,
+                            chrom2, y1 + offset, y2 - offset, '0,0,0', score - priority)
