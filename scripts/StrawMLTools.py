@@ -53,18 +53,18 @@ class LockedList(list):
 
 class AggregatedMatrix:
     def __init__(self, shape, use_arithmetic_mean: bool = False):
-        self.__useArithmeticMean = use_arithmetic_mean
+        self.__use_arithmetic_mean = use_arithmetic_mean
         self.__num_aggregations = 0
-        if self.__useArithmeticMean:
+        if self.__use_arithmetic_mean:
             self.__matrix = np.zeros(shape)
         else:
             self.__matrix = np.ones(shape)
 
     def aggregate(self, matrix, index):
-        if self.__useArithmeticMean:
-            self.__matrix[:, :, :, index] = self.__matrix[:, :, :, index] + matrix
+        if self.__use_arithmetic_mean:
+            self.__matrix[:, :, :, index] = self.__matrix[:, :, :, index] + matrix[:, :, :, 0]
         else:
-            self.__matrix[:, :, :, index] = np.multiply(self.__matrix[:, :, :, index], matrix)
+            self.__matrix[:, :, :, index] = np.multiply(self.__matrix[:, :, :, index], matrix[:, :, :, 0])
         if index == 0:
             self.__num_aggregations += 1
 
@@ -72,7 +72,7 @@ class AggregatedMatrix:
         self.__matrix[:, :, :, -1] = self.__matrix[:, :, :, 0] * self.__matrix[:, :, :, 1]
 
     def get_final_result(self):
-        if self.__useArithmeticMean:
+        if self.__use_arithmetic_mean:
             self.__matrix = self.__matrix / self.__num_aggregations
         else:
             self.__matrix = np.power(self.__matrix, 1.0 / self.__num_aggregations)
