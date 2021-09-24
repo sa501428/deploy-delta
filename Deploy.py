@@ -95,11 +95,11 @@ def merge_lists(loop_lists, domain_lists, stripe_lists, loop_domain_lists, loop_
         MultiResHandler(loop_lists, out_path + '_loops_merged.bedpe', threshold=1e-10,
                         radii=loop_radii)
         MultiResHandler(domain_lists, out_path + '_domains_merged.bedpe', threshold=1e-10,
-                        radii=domain_radii)
+                        radii=domain_radii, is_domain=True)
         MultiResHandler(stripe_lists, out_path + '_stripes_merged.bedpe', threshold=1e-10,
-                        radii=loop_radii)
+                        radii=loop_radii, is_stripe=True)
         MultiResHandler(loop_domain_lists, out_path + '_loop_domains_merged.bedpe', threshold=1e-10,
-                        radii=domain_radii)
+                        radii=domain_radii, is_domain=True)
 
 
 class DeployTridentFeatures:

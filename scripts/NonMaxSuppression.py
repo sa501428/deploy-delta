@@ -3,16 +3,23 @@ import gc
 import numpy as np
 
 
+def update_stripe_pick(initial_stripe, overlapping_stripe_list):
+    bounding_stripe = initial_stripe + 0
+    bounding_stripe[2] = np.minimum(overlapping_stripe_list[:, 2])
+    bounding_stripe[3] = np.maximum(overlapping_stripe_list[:, 3])
+    return bounding_stripe
+
+
 class FastNMS:
     def __init__(self, resolution, threshold):
         self.__resolution = resolution
         self.__threshold = threshold
 
-    def run(self, boxes):
+    def run(self, boxes, is_stripe=False):
         if len(boxes) == 0:
             return []
         boxes[:, :4] = boxes[:, :4] / self.__resolution
-        pick = []
+        picks = []
         x1 = boxes[:, 0]
         x2 = boxes[:, 1]
         y1 = boxes[:, 2]
@@ -22,7 +29,7 @@ class FastNMS:
         while len(indexes) > 0:
             last = len(indexes) - 1
             i = indexes[last]
-            pick.append(i)
+            pick = boxes[i]
             xx1 = np.maximum(x1[i], x1[indexes[:last]])
             yy1 = np.maximum(y1[i], y1[indexes[:last]])
             xx2 = np.minimum(x2[i], x2[indexes[:last]])
@@ -30,9 +37,14 @@ class FastNMS:
             w = np.maximum(0, xx2 - xx1)
             h = np.maximum(0, yy2 - yy1)
             overlap = (w * h) / area[indexes[:last]]
-            indexes = np.delete(indexes, np.concatenate(([last], np.where(overlap > self.__threshold)[0])))
-        boxes[:, :4] = boxes[:, :4] * self.__resolution
-        return boxes[pick]
+            overlapping_indices = np.concatenate(([last], np.where(overlap > self.__threshold)[0]))
+            if is_stripe:
+                pick = update_stripe_pick(pick, boxes[overlapping_indices])
+            indexes = np.delete(indexes, overlapping_indices)
+            picks.append(pick)
+        picks = np.asarray(picks)
+        picks[:, :4] = picks[:, :4] * self.__resolution
+        return picks
 
 
 class Handler:
@@ -41,16 +53,16 @@ class Handler:
         self.resolution = resolution
         self.nms = FastNMS(1, threshold)
 
-    def do_nms_and_print_to_file(self, outfile_name):
+    def do_nms_and_print_to_file(self, outfile_name, is_domain=False, is_stripe=False):
         for key in self.findings:
             temp = list(self.findings[key])
             temp = np.vstack(temp)
-            self.findings[key] = self.nms.run(temp)
+            self.findings[key] = self.nms.run(temp, is_stripe=is_stripe)
 
         outfile_handler = open(outfile_name, 'w')
         outfile_handler.write("#chr1\tx1\tx2\tchr2\ty1\ty2\tname1\tscore\tstrand1\tstrand2\tcolor\n")
         for key in self.findings:
-            self.write_to_file(outfile_handler, key[0], key[1], self.findings[key])
+            self.write_to_file(outfile_handler, key[0], key[1], self.findings[key], is_domain=is_domain)
         outfile_handler.close()
 
     def add_prediction(self, chrom1, chrom2, x1, x2, y1, y2, prediction, offset=0, priority=0):
@@ -66,11 +78,14 @@ class Handler:
         score = float(data[index, 4])
         return x1, x2, y1, y2, score
 
-    def write_to_file(self, outfile_handler, chrom1, chrom2, results):
+    def write_to_file(self, outfile_handler, chrom1, chrom2, results, is_domain=False):
         results[:, :4] = results[:, :4] * self.resolution
         for k in range(np.shape(results)[0]):
             x1, x2, y1, y2, score = self.parse_bedpe_line(results, k)
-            self.write_line(outfile_handler, chrom1, x1, x2, chrom2, y1, y2, '0,0,0', score)
+            if is_domain:
+                self.write_line(outfile_handler, chrom1, x1, y2, chrom1, x1, y2, '0,0,0', score)
+            else:
+                self.write_line(outfile_handler, chrom1, x1, x2, chrom2, y1, y2, '0,0,0', score)
 
     @staticmethod
     def write_line(out_file_handler, chrom1, x1, x2, chrom2, y1, y2, color, prediction):
@@ -79,7 +94,7 @@ class Handler:
 
 
 class MultiResHandler(Handler):
-    def __init__(self, files, output_name, threshold=.3, radii=None):
+    def __init__(self, files, output_name, threshold=.3, radii=None, is_domain=False, is_stripe=False):
         super().__init__(1, threshold)
         if radii is None:
             for file in files:
@@ -87,7 +102,7 @@ class MultiResHandler(Handler):
         else:
             for f in range(len(files)):
                 self.fill_out_all_indices(files[f], len(files) - f, radii[f])
-        self.do_nms_and_print_to_file(output_name)
+        self.do_nms_and_print_to_file(output_name, is_domain=is_domain, is_stripe=is_stripe)
 
     def fill_out_all_indices(self, infile, priority, offset):
         with open(infile) as f:
@@ -101,10 +116,14 @@ class MultiResHandler(Handler):
                 self.add_prediction(chrom1, chrom2, x1, x2, y1, y2, prediction, offset, priority)
         gc.collect()
 
-    def write_to_file(self, outfile_handler, chrom1, chrom2, results):
+    def write_to_file(self, outfile_handler, chrom1, chrom2, results, is_domain=False):
         results[:, :4] = results[:, :4] * self.resolution
         for k in range(np.shape(results)[0]):
             x1, x2, y1, y2, score = self.parse_bedpe_line(results, k)
             offset, priority = int(results[k, 5]), int(results[k, 6])
-            self.write_line(outfile_handler, chrom1, x1 + offset, x2 - offset,
-                            chrom2, y1 + offset, y2 - offset, '0,0,0', score - priority)
+            if is_domain:
+                self.write_line(outfile_handler, chrom1, x1 + offset, y2 - offset, chrom1, x1 + offset, y2 - offset,
+                                '0,0,0', score - priority)
+            else:
+                self.write_line(outfile_handler, chrom1, x1 + offset, x2 - offset, chrom2, y1 + offset, y2 - offset,
+                                '0,0,0', score - priority)
