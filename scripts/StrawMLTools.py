@@ -167,9 +167,9 @@ class DeploySpears:
                 time.sleep(2)
                 continue
 
-            raw_hic_input = np.zeros((current_size, self.get_width(), self.get_width(), 1))
+            raw_hic_input = np.zeros((current_size, self.get_width(), self.get_width(), 3))
             for k in range(current_size):
-                raw_hic_input[k, :, :, 0] = section[k][0]
+                raw_hic_input[k, :, :, :] = section[k][0]
             raw_hic_input = tf.constant(raw_hic_input)
             agg_matrix = AggregatedMatrix((current_size, self.get_width(), self.get_width(),
                                            self.__num_output_channels + 1), self.__use_arithmetic_mean)

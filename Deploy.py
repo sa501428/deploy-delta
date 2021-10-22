@@ -38,17 +38,24 @@ class WBCE:
                            (1 - y_true[:, :, :, 0]) * keras.log(1 - y_pred[:, :, :, 0]))
 
 
-def preprocessing_method(matrix):
+def preprocessing_method(matrix, m_width: int = 500):  # , scale=0.1
+    result = np.zeros((m_width, m_width, 3))
     if np.sum(matrix) < 1e-9:
-        return matrix
+        return result
     flattened_data = matrix.flatten()
     flattened_data = flattened_data[flattened_data > 0]
     median_val = np.median(flattened_data)
     mad_val = np.median(np.abs(flattened_data - median_val))
     if mad_val < 1e-9:
-        mad_val = 1
-    return np.tanh(0.1 * (matrix - median_val) / mad_val)
-    # return (matrix - median_val) / mad_val
+        if median_val < 1e-9:
+            mad_val = 1
+        else:
+            mad_val = median_val / 2
+    # print('median', median_val, 'mad', mad_val)
+    result[:, :, 0] = matrix / (5 * mad_val)
+    result[:, :, 1] = matrix / (10 * mad_val)
+    result[:, :, 2] = matrix / (30 * mad_val)
+    return np.tanh(result - 2)
 
 
 def load_models():
