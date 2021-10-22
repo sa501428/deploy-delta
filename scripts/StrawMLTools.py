@@ -69,7 +69,7 @@ class AggregatedMatrix:
             self.__num_aggregations += 1
 
     def __calc_loop_domains(self):
-        self.__matrix[:, :, :, -1] = self.__matrix[:, :, :, 0] * self.__matrix[:, :, :, 1]
+        self.__matrix[:, :, :, -1] = np.sqrt(self.__matrix[:, :, :, 0] * self.__matrix[:, :, :, 1])
 
     def get_final_result(self):
         if self.__use_arithmetic_mean:
