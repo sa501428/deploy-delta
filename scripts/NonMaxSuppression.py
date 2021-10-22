@@ -4,9 +4,9 @@ import numpy as np
 
 
 def update_stripe_pick(initial_stripe, overlapping_stripe_list):
-    bounding_stripe = initial_stripe + 0
-    bounding_stripe[2] = np.minimum(overlapping_stripe_list[:, 2])
-    bounding_stripe[3] = np.maximum(overlapping_stripe_list[:, 3])
+    bounding_stripe = np.squeeze(initial_stripe) + 0
+    bounding_stripe[2] = np.min(overlapping_stripe_list[:, 2])
+    bounding_stripe[3] = np.max(overlapping_stripe_list[:, 3])
     return bounding_stripe
 
 
