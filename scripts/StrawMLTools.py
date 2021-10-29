@@ -287,7 +287,8 @@ class DeploySpears:
             row_end = max(int(x0 + np.max(indices[0])), row_start + 1)
             col_start = int(y0 + np.min(indices[1]))
             col_end = max(int(y0 + np.max(indices[1])), col_start + 1)
-            handler.add_prediction(chrom1, chrom1, row_start, row_end, col_start, col_end, max_prediction)
+            if col_end - col_start > 10 * (row_end - row_start):
+                handler.add_prediction(chrom1, chrom1, row_start, row_end, col_start, col_end, max_prediction)
 
     def write_prediction_to_nms_handler(self, section):
         prediction = section[0]
