@@ -69,7 +69,7 @@ class AggregatedMatrix:
             self.__num_aggregations += 1
 
     def __calc_loop_domains(self):
-        self.__matrix[:, :, :, -1] = self.__matrix[:, :, :, 0] * self.__matrix[:, :, :, 1]
+        self.__matrix[:, :, :, -1] = np.sqrt(self.__matrix[:, :, :, 0] * self.__matrix[:, :, :, 1])
 
     def get_final_result(self):
         if self.__use_arithmetic_mean:
@@ -167,9 +167,9 @@ class DeploySpears:
                 time.sleep(2)
                 continue
 
-            raw_hic_input = np.zeros((current_size, self.get_width(), self.get_width(), 1))
+            raw_hic_input = np.zeros((current_size, self.get_width(), self.get_width(), 3))
             for k in range(current_size):
-                raw_hic_input[k, :, :, 0] = section[k][0]
+                raw_hic_input[k, :, :, :] = section[k][0]
             raw_hic_input = tf.constant(raw_hic_input)
             agg_matrix = AggregatedMatrix((current_size, self.get_width(), self.get_width(),
                                            self.__num_output_channels + 1), self.__use_arithmetic_mean)
@@ -287,7 +287,8 @@ class DeploySpears:
             row_end = max(int(x0 + np.max(indices[0])), row_start + 1)
             col_start = int(y0 + np.min(indices[1]))
             col_end = max(int(y0 + np.max(indices[1])), col_start + 1)
-            handler.add_prediction(chrom1, chrom1, row_start, row_end, col_start, col_end, max_prediction)
+            if col_end - col_start > 10 * (row_end - row_start):
+                handler.add_prediction(chrom1, chrom1, row_start, row_end, col_start, col_end, max_prediction)
 
     def write_prediction_to_nms_handler(self, section):
         prediction = section[0]
