@@ -2,14 +2,6 @@ import gc
 import numpy as np
 
 
-def split_boxes(boxes):
-    x1 = np.squeeze(boxes[:, 0])
-    x2 = np.squeeze(boxes[:, 1])
-    y1 = np.squeeze(boxes[:, 2])
-    y2 = np.squeeze(boxes[:, 3])
-    return x1, x2, y1, y2
-
-
 def generate_new_pick(initial_stripe, overlapping_stripes):
     new_stripe = np.squeeze(initial_stripe) + 0
     new_stripe[2] = min(new_stripe[2], np.min(overlapping_stripes[:, 2]))
@@ -17,27 +9,27 @@ def generate_new_pick(initial_stripe, overlapping_stripes):
     return new_stripe
 
 
-def get_overlapping_indices(pick, x1, x2, y1, y2, indexes, last):
-    xx1 = np.maximum(pick[0], x1[indexes[:last]])
-    xx2 = np.minimum(pick[1], x2[indexes[:last]])
-    yy1 = np.maximum(pick[2], y1[indexes[:last]])
-    yy2 = np.minimum(pick[3], y2[indexes[:last]])
-    perimeter = np.maximum(0, xx2 - xx1) + np.maximum(0, yy2 - yy1)
-    return np.where(perimeter > 0)[0]
+def get_overlapping_indices(pick, indexes, last, boxes):
+    xx1 = np.maximum(pick[0], boxes[indexes[:last], 0])
+    xx2 = np.minimum(pick[1], boxes[indexes[:last], 1])
+    yy1 = np.maximum(pick[2], boxes[indexes[:last], 2])
+    yy2 = np.minimum(pick[3], boxes[indexes[:last], 3])
+    area = np.maximum(0, xx2 - xx1) * np.maximum(0, yy2 - yy1)
+    indices = np.where(area > 0)[0]
+    return indices
 
 
-def update_stripe_merger(pick, x1, x2, y1, y2, indexes, last, boxes):
-    overlapping_indices = get_overlapping_indices(pick, x1, x2, y1, y2, indexes, last)
+def update_stripe_merger(pick, indexes, last, boxes):
+    overlapping_indices = get_overlapping_indices(pick, indexes, last, boxes)
     if len(overlapping_indices) > 0:
-        return generate_new_pick(pick, boxes[overlapping_indices]), overlapping_indices
+        return generate_new_pick(pick, boxes[indexes[overlapping_indices]]), overlapping_indices
     return pick, overlapping_indices
 
 
-def nms(boxes, assimilate:bool = False):
+def nms(boxes, assimilate: bool = False):
     if len(boxes) == 0:
         return []
     picks = []
-    x1, x2, y1, y2 = split_boxes(boxes)
     indexes = np.argsort(boxes[:, 4])
     num_boxes_left = len(indexes)
     while num_boxes_left > 0:
@@ -47,13 +39,12 @@ def nms(boxes, assimilate:bool = False):
         num_overlap = 0
         if assimilate:
             while True:
-                pick, overlapping_indices = update_stripe_merger(pick, x1, x2, y1, y2,
-                                                                 indexes, last, boxes)
+                pick, overlapping_indices = update_stripe_merger(pick, indexes, last, boxes)
                 if num_overlap == len(overlapping_indices):
                     break
                 num_overlap = len(overlapping_indices)
         else:
-            overlapping_indices = get_overlapping_indices(boxes[i], x1, x2, y1, y2, indexes, last)
+            overlapping_indices = get_overlapping_indices(boxes[i], indexes, last, boxes)
         overlapping_indices = np.concatenate(([last], overlapping_indices))
         indexes = np.delete(indexes, overlapping_indices)
         picks.append(pick)
