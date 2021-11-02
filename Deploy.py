@@ -1,4 +1,5 @@
 import sys
+import os
 from scripts.DeploymentUtils import DeployTridentFeatures, load_models
 
 # python3 Deploy.py <file.hic> </dir/models> </dir/working> <stem> <res,> <norm> <threshold>
@@ -7,7 +8,9 @@ if __name__ == "__main__":
     MATRIX_WIDTH = 500
     FILEPATH = sys.argv[1]
     MODEL_DIR = sys.argv[2]
-    WORKING_DIR = sys.argv[3]
+    OUTPUT_DIR = sys.argv[3]
+    if not os.path.exists(OUTPUT_DIR):
+        os.makedirs(OUTPUT_DIR)
     STEM = sys.argv[4]
     RESOLUTIONS = sys.argv[5].split(",")
     NORMALIZATION_TYPE = sys.argv[6]  # "KR"
@@ -17,5 +20,5 @@ if __name__ == "__main__":
     NUM_STRAW_WORKERS = 10
     FEATURE_TYPES = ["loops", "domains", "stripes"]
     ALL_MODELS = load_models(FEATURE_TYPES, MODEL_DIR)
-    DeployTridentFeatures(FILEPATH, ALL_MODELS, RESOLUTIONS, STEM, WORKING_DIR, NORMALIZATION_TYPE, THRESHOLD,
+    DeployTridentFeatures(FILEPATH, ALL_MODELS, RESOLUTIONS, STEM, OUTPUT_DIR, NORMALIZATION_TYPE, THRESHOLD,
                           MATRIX_WIDTH, MAX_EXAMPLES_IN_RAM, NUM_STRAW_WORKERS, BATCH_SIZE)
