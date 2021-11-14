@@ -109,7 +109,7 @@ class DeploySpears:
         self.__preprocess_input = preprocess_method
         self.__nms_handlers = []
         for k in range(num_output_channels + 1):
-            self.__nms_handlers.append(Handler(resolution))
+            self.__nms_handlers.append(Handler())
         self.__footer = self.fill_out_all_indices(filepath, resolution, norm)
         self.__num_total_slices = self.__coords_list.len()
         self.__predict_from_model()
