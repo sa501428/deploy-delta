@@ -201,11 +201,13 @@ class DeploySpears:
             max_bin = chromosome.length // resolution + 1
             exceed_boundaries_limit = max_bin - self.get_width()
             buffer = 50
-            near_diag_distance = 10000000 // resolution - self.get_width()
+            near_diag_distance = 1000 - self.get_width()
             temp = []
             for x1 in range(0, max_bin - self.get_width(), self.get_width() - buffer):
                 for y1 in range(x1, min(x1 + near_diag_distance, exceed_boundaries_limit), self.get_width() - buffer):
                     temp.append((chrom, x1, y1))
+                    if x1 != y1:
+                        temp.append((chrom, y1, x1))
             temp.append((chrom, exceed_boundaries_limit, exceed_boundaries_limit))
             self.populate_coordinates(temp)
             del temp
