@@ -206,8 +206,6 @@ class DeploySpears:
             for x1 in range(0, max_bin - self.get_width(), self.get_width() - buffer):
                 for y1 in range(x1, min(x1 + near_diag_distance, exceed_boundaries_limit), self.get_width() - buffer):
                     temp.append((chrom, x1, y1))
-                    if x1 != y1:
-                        temp.append((chrom, y1, x1))
             temp.append((chrom, exceed_boundaries_limit, exceed_boundaries_limit))
             self.populate_coordinates(temp)
             del temp
@@ -252,6 +250,9 @@ class DeploySpears:
             if matrix is None or not (type(matrix) is np.ndarray):
                 continue
             self.__straw_data_list.append((self.__preprocess_input(matrix.copy()), coordinates))
+            (chrom1, x1, y1) = coordinates
+            if x1 != y1:
+                self.__straw_data_list.append((self.__preprocess_input(matrix.T), (chrom1, y1, x1)))
             del matrix
             gc.collect()
         with self.__lock:
