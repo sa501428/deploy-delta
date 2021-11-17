@@ -110,8 +110,7 @@ class DeploySpears:
         self.__nms_handlers = []
         for k in range(num_output_channels + 1):
             self.__nms_handlers.append(Handler())
-        self.__footer = self.fill_out_all_indices(filepath, resolution, norm)
-        self.__num_total_slices = self.__coords_list.len()
+        self.__footer, self.__num_total_slices = self.fill_out_all_indices(filepath, resolution, norm)
         self.__predict_from_model()
 
     def grab_region(self, chrom1, cx1, cx2, cy1, cy2, resolution):
@@ -194,6 +193,7 @@ class DeploySpears:
 
     def fill_out_all_indices(self, hic_file, resolution, norm):
         chrom_dot_sizes = strawC.getChromosomes(hic_file)
+        num_total_slices = 0
         for chromosome in chrom_dot_sizes:
             chrom = chromosome.name
             if chrom.lower() == 'all':
@@ -206,7 +206,12 @@ class DeploySpears:
             for x1 in range(0, max_bin - self.get_width(), self.get_width() - buffer):
                 for y1 in range(x1, min(x1 + near_diag_distance, exceed_boundaries_limit), self.get_width() - buffer):
                     temp.append((chrom, x1, y1))
+                    if x1 == y1:
+                        num_total_slices += 1
+                    else:
+                        num_total_slices += 2
             temp.append((chrom, exceed_boundaries_limit, exceed_boundaries_limit))
+            num_total_slices += 1
             self.populate_coordinates(temp)
             del temp
         print('Near Diagonal Values populated', flush=True)
@@ -219,7 +224,7 @@ class DeploySpears:
                 continue
             print('Getting norm vector for', chrom, flush=True)
             footer[chrom] = strawC.getNormExpVectors(hic_file, chrom, chrom, "observed", norm, "BP", resolution)
-        return footer
+        return footer, num_total_slices
 
     def generate_bedpe_annotation(self):
         skip_counter = 0
