@@ -20,7 +20,7 @@ class WBCE:
                            (1 - y_true[:, :, :, 0]) * keras.log(1 - y_pred[:, :, :, 0]))
 
 
-def preprocessing_method(matrix, m_width: int = 500):  # , scale=0.1
+def insitu_preprocessing_method(matrix, m_width: int = 500):  # , scale=0.1
     result = np.zeros((m_width, m_width, 3))
     if np.sum(matrix) < 1e-9:
         return result
@@ -37,6 +37,23 @@ def preprocessing_method(matrix, m_width: int = 500):  # , scale=0.1
     result[:, :, 0] = matrix / (5 * mad_val)
     result[:, :, 1] = matrix / (10 * mad_val)
     result[:, :, 2] = matrix / (30 * mad_val)
+    return np.tanh(result - 2)
+
+
+def intact_preprocessing_method(matrix, m_width: int = 500):  # , scale=0.1
+    result = np.zeros((m_width, m_width, 3))
+    if np.sum(matrix) < 1e-9:
+        return result
+    flattened_data = matrix.flatten()
+    flattened_data = flattened_data[flattened_data > 0]
+    median_val = np.median(flattened_data)
+    mad_val = np.median(np.abs(flattened_data - median_val))
+    if mad_val < 1:
+        mad_val = 1
+    m2 = matrix / mad_val
+    result[:, :, 0] = np.log(1 + m2)
+    result[:, :, 1] = m2 / 7
+    result[:, :, 2] = m2 * m2 / 200
     return np.tanh(result - 2)
 
 
@@ -59,7 +76,7 @@ def load_models(feature_types: list, model_directory: str) -> list:
 
 def deploy_at_res(filepath: str, all_models: list, matrix_width: int, res: int, working_directory: str,
                   normalization_type: str, stem: str, max_examples_in_ram: int, num_straw_workers: int,
-                  threshold: float, batch_size: int):
+                  threshold: float, batch_size: int, use_insitu_preprocessing: bool):
     out_path = working_directory + "/" + stem
     loop_file = out_path + '_loops_' + str(res) + '.bedpe'
     domain_file = out_path + '_domains_' + str(res) + '.bedpe'
@@ -67,13 +84,17 @@ def deploy_at_res(filepath: str, all_models: list, matrix_width: int, res: int, 
     loop_domain_file = out_path + '_loop_domains_' + str(res) + '.bedpe'
     print('got to deployment')
     print("Doing resolution", res, "for", stem, flush=True)
+    method = intact_preprocessing_method
+    if use_insitu_preprocessing:
+        method = insitu_preprocessing_method
+
     DeploySpears(all_model_sets=all_models, batch_size=batch_size,
                  num_straw_workers=num_straw_workers, filepath=filepath,
                  resolution=res,
                  max_examples_in_ram=max_examples_in_ram, matrix_width=matrix_width,
                  threshold=threshold,
                  out_files=[loop_file, domain_file, stripe_file, loop_domain_file],
-                 preprocess_method=preprocessing_method,
+                 preprocess_method=method,
                  use_arithmetic_mean=False,
                  norm=normalization_type,
                  num_output_channels=3)
@@ -93,7 +114,8 @@ def merge_lists(working_directory, stem, loop_lists, domain_lists, stripe_lists,
 class DeployTridentFeatures:
     def __init__(self, filepath: str, all_models: list, resolution_strings: list,
                  stem: str, working_directory: str, normalization_type: str, threshold: float, matrix_width: int,
-                 max_examples_in_ram: int, num_straw_workers: int, batch_size: int):
+                 max_examples_in_ram: int, num_straw_workers: int, batch_size: int,
+                 use_insitu_preprocessing: bool):
         resolutions = []
         for res_string in resolution_strings:
             resolutions.append(int(res_string))
@@ -110,7 +132,7 @@ class DeployTridentFeatures:
             loops, domains, stripes, loop_domains = deploy_at_res(filepath, all_models, matrix_width, res,
                                                                   working_directory, normalization_type, stem,
                                                                   max_examples_in_ram, num_straw_workers,
-                                                                  threshold, batch_size)
+                                                                  threshold, batch_size, use_insitu_preprocessing)
 
             runtime = time.time() - start_time
             print("Executed resolution {} in {} seconds".format(res, runtime))
