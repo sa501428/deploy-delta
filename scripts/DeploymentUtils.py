@@ -51,9 +51,9 @@ def intact_preprocessing_method(matrix, m_width: int = 500):  # , scale=0.1
     if mad_val < 1:
         mad_val = 1
     m2 = matrix / mad_val
-    result[:, :, 0] = np.log(1 + m2)
-    result[:, :, 1] = m2 / 7
-    result[:, :, 2] = m2 * m2 / 200
+    result[:, :, 0] = m2 / 5
+    result[:, :, 1] = m2 / 10
+    result[:, :, 2] = m2 / 30
     return np.tanh(result - 2)
 
 
