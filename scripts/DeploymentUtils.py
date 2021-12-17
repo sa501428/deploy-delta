@@ -28,15 +28,12 @@ def preprocessing_method(matrix, m_width: int = 500):  # , scale=0.1
     flattened_data = flattened_data[flattened_data > 0]
     median_val = np.median(flattened_data)
     mad_val = np.median(np.abs(flattened_data - median_val))
-    if mad_val < 1e-9:
-        if median_val < 1e-9:
-            mad_val = 1
-        else:
-            mad_val = median_val / 2
-    # print('median', median_val, 'mad', mad_val)
-    result[:, :, 0] = matrix / (5 * mad_val)
-    result[:, :, 1] = matrix / (10 * mad_val)
-    result[:, :, 2] = matrix / (30 * mad_val)
+    if mad_val < 1:
+        mad_val = 1
+    m2 = matrix / mad_val
+    result[:, :, 0] = m2 / 5
+    result[:, :, 1] = m2 / 10
+    result[:, :, 2] = m2 / 30
     return np.tanh(result - 2)
 
 
